@@ -1,0 +1,222 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  passwordHash  String
+  role          String    @default("STUDENT") // STUDENT | MENTOR | ADMIN | INVESTOR
+  avatar        String?
+  bio           String?
+  institution   String?
+  country       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  studentProfile  StudentProfile?
+  mentorProfile   MentorProfile?
+  coursesCreated  Course[]         @relation("MentorCourses")
+  enrollments     Enrollment[]
+  sentMessages    Message[]        @relation("SentMessages")
+  achievements    UserAchievement[]
+  chatsAsMentor   Chat[]           @relation("MentorChats")
+  chatsAsStudent  Chat[]           @relation("StudentChats")
+  groupMemberships GroupMember[]
+  recommendations Recommendation[]
+}
+
+model StudentProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mathLevel       String   @default("beginner") // beginner | intermediate | advanced | research
+  interests       String   @default("[]") // JSON array of topic strings
+  careerGoal      String?
+  targetConferences String @default("[]") // JSON array
+  resumeLatex     String?
+  xp              Int      @default(0)
+  level           Int      @default(1)
+}
+
+model MentorProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specializations String   @default("[]") // JSON array
+  degrees         String   @default("[]") // JSON array {degree, field, university, year}
+  publications    String   @default("[]") // JSON array
+  rating          Float    @default(0)
+  reviewsCount    Int      @default(0)
+  isVerified      Boolean  @default(false)
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  mentorId    String
+  mentor      User     @relation("MentorCourses", fields: [mentorId], references: [id])
+  topic       String   // algebra | analysis | topology | geometry | probability | logic | physics | biology
+  difficulty  String   @default("beginner") // beginner | intermediate | advanced
+  tags        String   @default("[]") // JSON array
+  isOpen      Boolean  @default(true)
+  isPublished Boolean  @default(false)
+  imageUrl    String?
+  introGameEnabled Boolean @default(false)
+  introGameConfig  String? // JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lessons     Lesson[]
+  enrollments Enrollment[]
+  groups      Group[]
+  recommendations Recommendation[]
+}
+
+model Lesson {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  content     String   // LaTeX / Markdown content
+  order       Int
+  type        String   @default("lecture") // lecture | exercise | game | quiz
+  gameConfig  String?  // JSON for interactive game config
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  completions LessonCompletion[]
+}
+
+model Enrollment {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     User     @relation(fields: [studentId], references: [id])
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id])
+  progress    Int      @default(0) // 0-100
+  enrolledAt  DateTime @default(now())
+  completedAt DateTime?
+
+  lessonCompletions LessonCompletion[]
+
+  @@unique([studentId, courseId])
+}
+
+model LessonCompletion {
+  id           String     @id @default(cuid())
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
+  lessonId     String
+  lesson       Lesson     @relation(fields: [lessonId], references: [id])
+  completedAt  DateTime   @default(now())
+  score        Int?
+
+  @@unique([enrollmentId, lessonId])
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id])
+  name      String
+  createdAt DateTime @default(now())
+
+  members   GroupMember[]
+  messages  Message[]    @relation("GroupMessages")
+}
+
+model GroupMember {
+  id       String @id @default(cuid())
+  groupId  String
+  group    Group  @relation(fields: [groupId], references: [id])
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  joinedAt DateTime @default(now())
+
+  @@unique([groupId, userId])
+}
+
+model Chat {
+  id        String   @id @default(cuid())
+  mentorId  String
+  mentor    User     @relation("MentorChats", fields: [mentorId], references: [id])
+  studentId String
+  student   User     @relation("StudentChats", fields: [studentId], references: [id])
+  createdAt DateTime @default(now())
+
+  messages  Message[]
+
+  @@unique([mentorId, studentId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  chatId    String?
+  chat      Chat?    @relation(fields: [chatId], references: [id])
+  groupId   String?
+  group     Group?   @relation("GroupMessages", fields: [groupId], references: [id])
+  senderId  String
+  sender    User     @relation("SentMessages", fields: [senderId], references: [id])
+  content   String
+  isLatex   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Conference {
+  id          String   @id @default(cuid())
+  name        String
+  shortName   String?
+  description String?
+  field       String   // mathematics | physics | biology | cs | interdisciplinary
+  subfield    String?
+  location    String
+  country     String
+  city        String
+  startDate   DateTime
+  endDate     DateTime
+  website     String?
+  isTop       Boolean  @default(false)
+  tier        String   @default("B") // A* | A | B | C
+  createdAt   DateTime @default(now())
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  title       String
+  description String
+  icon        String
+  xpReward    Int      @default(0)
+  users       UserAchievement[]
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  earnedAt      DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+}
+
+model Recommendation {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  courseId  String?
+  course    Course?  @relation(fields: [courseId], references: [id])
+  score     Float    @default(0)
+  reason    String?
+  createdAt DateTime @default(now())
+}
