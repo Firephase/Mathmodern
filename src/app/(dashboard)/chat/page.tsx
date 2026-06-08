@@ -9,12 +9,29 @@ import { Badge } from "@/components/ui/badge";
 import { getInitials, formatDate } from "@/lib/utils";
 import { MessageSquare } from "lucide-react";
 
-export default async function ChatsPage() {
+export default async function ChatsPage({
+  searchParams,
+}: {
+  searchParams: { with?: string };
+}) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/signin");
 
   const userId = (session.user as { id?: string }).id!;
   const role = (session.user as { role?: string })?.role;
+
+  // Auto-create or find chat when coming from a "Write" button
+  if (searchParams.with) {
+    const withUserId = searchParams.with;
+    const mentorId = role === "MENTOR" ? userId : withUserId;
+    const studentId = role === "MENTOR" ? withUserId : userId;
+    const chat = await prisma.chat.upsert({
+      where: { mentorId_studentId: { mentorId, studentId } },
+      create: { mentorId, studentId },
+      update: {},
+    });
+    redirect(`/chat/${chat.id}`);
+  }
 
   const chats = await prisma.chat.findMany({
     where: role === "MENTOR"

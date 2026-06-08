@@ -9,12 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   BookOpen, LayoutDashboard, Map, User, MessageSquare,
-  FlaskConical, Users, PlusCircle, LogOut, GraduationCap, Star,
+  FlaskConical, Users, PlusCircle, LogOut, GraduationCap, Star, UserSearch,
 } from "lucide-react";
 
 const studentLinks = [
   { href: "/student", label: "Дашборд", icon: LayoutDashboard },
   { href: "/student/courses", label: "Курсы", icon: BookOpen },
+  { href: "/student/mentors", label: "Менторы", icon: UserSearch },
   { href: "/student/playground", label: "Playground", icon: FlaskConical },
   { href: "/student/conferences", label: "Конференции", icon: Map },
   { href: "/student/profile", label: "Профиль", icon: User },
@@ -24,7 +25,8 @@ const mentorLinks = [
   { href: "/mentor", label: "Дашборд", icon: LayoutDashboard },
   { href: "/mentor/courses", label: "Мои курсы", icon: BookOpen },
   { href: "/mentor/courses/create", label: "Создать курс", icon: PlusCircle },
-  { href: "/mentor/students", label: "Студенты", icon: Users },
+  { href: "/mentor/students", label: "Мои студенты", icon: Users },
+  { href: "/mentor/browse-students", label: "Найти студента", icon: UserSearch },
   { href: "/mentor/groups", label: "Группы", icon: GraduationCap },
 ];
 
