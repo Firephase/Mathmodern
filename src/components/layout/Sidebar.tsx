@@ -27,6 +27,7 @@ const mentorLinks = [
   { href: "/mentor/courses/create", label: "Создать курс", icon: PlusCircle },
   { href: "/mentor/students", label: "Мои студенты", icon: Users },
   { href: "/mentor/browse-students", label: "Найти студента", icon: UserSearch },
+  { href: "/student/playground", label: "Playground", icon: FlaskConical },
   { href: "/mentor/groups", label: "Группы", icon: GraduationCap },
 ];
 

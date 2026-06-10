@@ -20,9 +20,9 @@ export async function GET(req: NextRequest) {
       role: "STUDENT",
       ...(search && {
         OR: [
-          { name: { contains: search, mode: "insensitive" } },
-          { institution: { contains: search, mode: "insensitive" } },
-          { studentProfile: { interests: { contains: search, mode: "insensitive" } } },
+          { name: { contains: search } },
+          { institution: { contains: search } },
+          { studentProfile: { interests: { contains: search } } },
         ],
       }),
     },

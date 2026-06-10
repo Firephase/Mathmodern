@@ -15,10 +15,10 @@ export async function GET(req: NextRequest) {
       role: "MENTOR",
       ...(search && {
         OR: [
-          { name: { contains: search, mode: "insensitive" } },
-          { bio: { contains: search, mode: "insensitive" } },
-          { institution: { contains: search, mode: "insensitive" } },
-          { mentorProfile: { specializations: { contains: search, mode: "insensitive" } } },
+          { name: { contains: search } },
+          { bio: { contains: search } },
+          { institution: { contains: search } },
+          { mentorProfile: { specializations: { contains: search } } },
         ],
       }),
     },

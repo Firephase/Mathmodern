@@ -1,16 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { FunctionPlotter } from "@/components/math/FunctionPlotter";
 import { MathGame } from "@/components/math/MathGame";
 import { LatexEditor } from "@/components/math/LatexEditor";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { LineChart, Gamepad2, FileText } from "lucide-react";
+import { LineChart, Gamepad2, FileText, Shapes } from "lucide-react";
+
+const TriangulationGame = dynamic(
+  () => import("@/components/math/TriangulationGame").then((m) => m.TriangulationGame),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse bg-muted rounded-xl" /> }
+);
 
 const TABS = [
   { id: "plotter", label: "Графопостроитель", icon: LineChart },
   { id: "game", label: "Игра: Касательные", icon: Gamepad2 },
+  { id: "triangulation", label: "Триангуляция", icon: Shapes },
   { id: "latex", label: "LaTeX редактор", icon: FileText },
 ];
 
@@ -67,6 +74,17 @@ $$2x + \\cos(x) = 0$$
           </CardHeader>
           <CardContent>
             <MathGame />
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === "triangulation" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Триангуляция поверхностей</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TriangulationGame />
           </CardContent>
         </Card>
       )}

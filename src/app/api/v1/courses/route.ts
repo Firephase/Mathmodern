@@ -16,8 +16,8 @@ export async function GET(req: NextRequest) {
       ...(publishedParam !== null && { isPublished: publishedParam === "true" }),
       ...(search && {
         OR: [
-          { title: { contains: search, mode: "insensitive" } },
-          { description: { contains: search, mode: "insensitive" } },
+          { title: { contains: search } },
+          { description: { contains: search } },
         ],
       }),
     },
