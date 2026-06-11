@@ -4,7 +4,7 @@ import React, { useState, useEffect, lazy, Suspense } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { SurfaceId, SURFACES } from "./types";
+import { SurfaceId, UserSeg, SURFACES } from "./types";
 import { CutCanvas } from "./CutCanvas";
 
 // Dynamic import for Three.js viewer to avoid SSR issues
@@ -25,6 +25,7 @@ export function TriangulationGame() {
   const [surface, setSurface] = useState<SurfaceId>("torus");
   const [viewTimer, setViewTimer] = useState(8);
   const [stats, setStats] = useState({ V: 0, E: 0, F: 1, chi: 1 });
+  const [segs, setSegs] = useState<UserSeg[]>([]);
 
   const surf = SURFACES[surface];
 
@@ -38,6 +39,7 @@ export function TriangulationGame() {
 
   function selectSurface(id: SurfaceId) {
     setSurface(id);
+    setSegs([]);
     setPhase("view");
     setViewTimer(8);
     setStats({ V: SURFACES[id].initV, E: SURFACES[id].initE, F: SURFACES[id].initF, chi: SURFACES[id].chi });
@@ -45,6 +47,7 @@ export function TriangulationGame() {
 
   function restart() {
     setPhase("select");
+    setSegs([]);
     setStats({ V: 0, E: 0, F: 1, chi: 1 });
   }
 
@@ -204,10 +207,10 @@ export function TriangulationGame() {
         {/* 3D viewer (small, left) */}
         <div className="flex flex-col items-center gap-2 shrink-0">
           <Suspense fallback={<div className="w-40 h-40 bg-muted rounded-xl animate-pulse" />}>
-            <Surface3D surface={surface} size={160} />
+            <Surface3D surface={surface} size={160} segs={segs} />
           </Suspense>
           <p className="text-xs text-muted-foreground text-center max-w-[160px]">
-            3D-модель поверхности
+            3D-модель · тяните для вращения
           </p>
           <div className="w-full bg-slate-50 dark:bg-slate-900 rounded-lg p-3 space-y-2">
             <p className="text-xs font-semibold text-center">Обозначение:</p>
@@ -224,6 +227,8 @@ export function TriangulationGame() {
         <div className="flex-1 min-w-0">
           <CutCanvas
             surface={surface}
+            segs={segs}
+            onSegsChange={setSegs}
             onStatsChange={(V, E, F, chi) => setStats({ V, E, F, chi })}
             onWin={() => setPhase("win")}
           />

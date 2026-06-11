@@ -160,6 +160,89 @@ export function snapTo(pt: Pt, candidates: Pt[], radius: number): Pt | null {
   return best;
 }
 
+// Colors for user-drawn cuts (must stay in sync with CutCanvas.tsx EDGE_COLORS)
+export const EDGE_COLORS_HEX = [
+  0xef4444, 0x3b82f6, 0xf59e0b, 0xa855f7,
+  0xec4899, 0x14b8a6, 0xf97316, 0x6366f1,
+];
+
+// Map a 2-D point (0–1 coords on the fundamental polygon) to 3-D surface coords
+export function mapTo3D(pt: Pt, surface: SurfaceId): { x: number; y: number; z: number } {
+  switch (surface) {
+    case 'torus': {
+      // Fundamental rectangle: [0.12, 0.88]² → u,v ∈ [0,1]
+      const u = (pt.x - 0.12) / 0.76;
+      const v = (pt.y - 0.12) / 0.76;
+      const uRad = u * 2 * Math.PI;
+      const vRad = v * 2 * Math.PI;
+      const R = 0.8, r = 0.34;
+      return {
+        x: (R + r * Math.cos(vRad)) * Math.cos(uRad),
+        y: r * Math.sin(vRad),
+        z: (R + r * Math.cos(vRad)) * Math.sin(uRad),
+      };
+    }
+    case 'sphere': {
+      // Disk centered at (0.5, 0.5) radius 0.42 → full sphere
+      const dx = pt.x - 0.5, dy = pt.y - 0.5;
+      const rNorm = Math.min(Math.hypot(dx, dy) / 0.42, 1);
+      const lambda = Math.atan2(dy, dx);
+      const phi = rNorm * Math.PI;
+      return {
+        x: Math.sin(phi) * Math.cos(lambda),
+        y: Math.cos(phi),
+        z: Math.sin(phi) * Math.sin(lambda),
+      };
+    }
+    case 'mobius': {
+      // Rectangle [0.08, 0.92] × [0.28, 0.72]
+      const u = (pt.x - 0.08) / 0.84;
+      const v = (pt.y - 0.28) / 0.44;
+      const uRad = u * 2 * Math.PI;
+      const vScaled = (v - 0.5) * 0.9;
+      return {
+        x: (1 + (vScaled / 2) * Math.cos(uRad / 2)) * Math.cos(uRad),
+        y: (1 + (vScaled / 2) * Math.cos(uRad / 2)) * Math.sin(uRad),
+        z: (vScaled / 2) * Math.sin(uRad / 2),
+      };
+    }
+    case 'double_torus': {
+      // Octagon ≈ bounding box [0.09, 0.91]². Split x < 0.5 → left torus, x ≥ 0.5 → right torus
+      const yMin = 0.09, yMax = 0.91;
+      const R = 0.48, r = 0.22;
+      if (pt.x < 0.5) {
+        const u = (pt.x - 0.09) / 0.41;
+        const v = (pt.y - yMin) / (yMax - yMin);
+        const uRad = u * 2 * Math.PI, vRad = v * 2 * Math.PI;
+        return {
+          x: -0.58 + (R + r * Math.cos(vRad)) * Math.cos(uRad),
+          y: r * Math.sin(vRad),
+          z: (R + r * Math.cos(vRad)) * Math.sin(uRad),
+        };
+      } else {
+        const u = (pt.x - 0.5) / 0.41;
+        const v = (pt.y - yMin) / (yMax - yMin);
+        const uRad = u * 2 * Math.PI, vRad = v * 2 * Math.PI;
+        return {
+          x: 0.58 + (R + r * Math.cos(vRad)) * Math.cos(uRad),
+          y: r * Math.sin(vRad),
+          z: (R + r * Math.cos(vRad)) * Math.sin(uRad),
+        };
+      }
+    }
+  }
+}
+
+// Lift a 3-D point slightly off the surface to avoid z-fighting
+export function liftOff(p: { x: number; y: number; z: number }, surface: SurfaceId) {
+  const LIFT = 1.025;
+  if (surface === 'double_torus') {
+    const cx = p.x < 0 ? -0.58 : 0.58;
+    return { x: cx + (p.x - cx) * LIFT, y: p.y * LIFT, z: p.z * LIFT };
+  }
+  return { x: p.x * LIFT, y: p.y * LIFT, z: p.z * LIFT };
+}
+
 // Build planar graph from boundary + user segments, compute V, E, F, χ
 export function computeCW(
   boundary: Pt[],

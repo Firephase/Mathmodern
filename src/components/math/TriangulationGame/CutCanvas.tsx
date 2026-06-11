@@ -28,12 +28,13 @@ const EDGE_COLORS = [
 
 interface Props {
   surface: SurfaceId;
+  segs: UserSeg[];
+  onSegsChange: (segs: UserSeg[]) => void;
   onStatsChange: (v: number, e: number, f: number, chi: number) => void;
   onWin: () => void;
 }
 
-export function CutCanvas({ surface, onStatsChange, onWin }: Props) {
-  const [segs, setSegs] = useState<UserSeg[]>([]);
+export function CutCanvas({ surface, segs, onSegsChange, onStatsChange, onWin }: Props) {
   const [drawing, setDrawing] = useState<Pt | null>(null); // start of current edge
   const [hovered, setHovered] = useState<Pt | null>(null);
   const [mode, setMode] = useState<"vertex" | "edge">("edge");
@@ -106,7 +107,7 @@ export function CutCanvas({ surface, onStatsChange, onWin }: Props) {
     } else {
       // Don't allow zero-length edges
       if (dist(drawing, pt) < 0.01) { setDrawing(null); return; }
-      setSegs((s) => [...s, { a: drawing, b: pt, id: nextId.current++ }]);
+      onSegsChange([...segs, { a: drawing, b: pt, id: nextId.current++ }]);
       setDrawing(null);
     }
   }, [getSvgPos, allSnappable, boundary, mode, drawing]);
@@ -118,11 +119,11 @@ export function CutCanvas({ surface, onStatsChange, onWin }: Props) {
 
   const undo = () => {
     if (drawing) { setDrawing(null); return; }
-    setSegs((s) => s.slice(0, -1));
+    onSegsChange(segs.slice(0, -1));
   };
 
   const reset = () => {
-    setSegs([]);
+    onSegsChange([]);
     setExtraVerts([]);
     setDrawing(null);
   };

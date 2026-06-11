@@ -2,19 +2,38 @@
 
 import { useEffect, useRef } from "react";
 import type * as ThreeTypes from "three";
-import type { SurfaceId } from "./types";
+import type { SurfaceId, UserSeg } from "./types";
+import { mapTo3D, liftOff, EDGE_COLORS_HEX } from "./types";
 
 interface Props {
   surface: SurfaceId;
   size?: number;
+  segs?: UserSeg[];
 }
 
-export function Surface3D({ surface, size = 320 }: Props) {
-  const mountRef = useRef<HTMLDivElement>(null);
+interface SceneHandles {
+  scene: ThreeTypes.Scene;
+  camera: ThreeTypes.PerspectiveCamera;
+  renderer: ThreeTypes.WebGLRenderer;
+  cutLines: ThreeTypes.Line[];
+}
 
+export function Surface3D({ surface, size = 320, segs = [] }: Props) {
+  const mountRef = useRef<HTMLDivElement>(null);
+  const handlesRef = useRef<SceneHandles | null>(null);
+  const segsRef = useRef<UserSeg[]>(segs);
+  const drawLinesRef = useRef<(() => void) | null>(null);
+
+  // Keep segsRef current and trigger redraw
+  useEffect(() => {
+    segsRef.current = segs;
+    drawLinesRef.current?.();
+  }, [segs]);
+
+  // Build Three.js scene — reruns only when surface or size changes
   useEffect(() => {
     let animId: number;
-    let cleanup: (() => void) | undefined;
+    let cleanupFn: (() => void) | undefined;
 
     async function init() {
       const THREE = await import("three");
@@ -27,7 +46,28 @@ export function Surface3D({ surface, size = 320 }: Props) {
 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-      camera.position.set(0, 0, 3.5);
+
+      // Spherical orbit state
+      const orbit = {
+        theta: 0.5,
+        phi: 1.1,
+        radius: surface === "mobius" ? 4 : 3.5,
+        isDragging: false,
+        lastX: 0,
+        lastY: 0,
+        autoRotate: true,
+        resumeTimer: null as ReturnType<typeof setTimeout> | null,
+      };
+
+      function applyCamera() {
+        camera.position.set(
+          orbit.radius * Math.sin(orbit.phi) * Math.cos(orbit.theta),
+          orbit.radius * Math.cos(orbit.phi),
+          orbit.radius * Math.sin(orbit.phi) * Math.sin(orbit.theta),
+        );
+        camera.lookAt(0, 0, 0);
+      }
+      applyCamera();
 
       // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.5));
@@ -42,7 +82,6 @@ export function Surface3D({ surface, size = 320 }: Props) {
         color: 0x22c55e,
         shininess: 80,
         side: THREE.DoubleSide,
-        wireframe: false,
       });
       const wireMat = new THREE.MeshBasicMaterial({
         color: 0x16a34a,
@@ -64,7 +103,6 @@ export function Surface3D({ surface, size = 320 }: Props) {
         (mesh as ThreeTypes.Group).add(new THREE.Mesh(geo, mat));
         (mesh as ThreeTypes.Group).add(new THREE.Mesh(geo, wireMat));
       } else if (surface === "double_torus") {
-        // Two tori side by side, approximate genus-2 surface
         const geo = new THREE.TorusGeometry(0.48, 0.22, 20, 48);
         mesh = new THREE.Group();
         const t1 = new THREE.Mesh(geo, mat);
@@ -78,9 +116,7 @@ export function Surface3D({ surface, size = 320 }: Props) {
         (mesh as ThreeTypes.Group).add(t1, t1w, t2, t2w);
       } else {
         // Möbius strip — parametric
-        const positions: number[] = [];
-        const normals: number[] = [];
-        const indices: number[] = [];
+        const positions: number[] = [], normals: number[] = [], indices: number[] = [];
         const uSegs = 128, vSegs = 20;
         for (let i = 0; i <= uSegs; i++) {
           for (let j = 0; j <= vSegs; j++) {
@@ -90,22 +126,18 @@ export function Surface3D({ surface, size = 320 }: Props) {
             const y = (1 + (v / 2) * Math.cos(u / 2)) * Math.sin(u);
             const z = (v / 2) * Math.sin(u / 2);
             positions.push(x, y, z);
-            // Normal (approximate)
-            const eps = 0.01;
-            const u2 = u + eps;
-            const nx = (1 + (v / 2) * Math.cos(u2 / 2)) * Math.cos(u2) - x;
-            const ny = (1 + (v / 2) * Math.cos(u2 / 2)) * Math.sin(u2) - y;
-            const nz = (v / 2) * Math.sin(u2 / 2) - z;
-            const nl = Math.hypot(nx, ny, nz) || 1;
-            normals.push(-ny / nl, nx / nl, 0);
+            const eps = 0.01, u2 = u + eps;
+            const nx2 = (1 + (v / 2) * Math.cos(u2 / 2)) * Math.cos(u2) - x;
+            const ny2 = (1 + (v / 2) * Math.cos(u2 / 2)) * Math.sin(u2) - y;
+            const nz2 = (v / 2) * Math.sin(u2 / 2) - z;
+            const nl = Math.hypot(nx2, ny2, nz2) || 1;
+            normals.push(-ny2 / nl, nx2 / nl, 0);
           }
         }
         for (let i = 0; i < uSegs; i++) {
           for (let j = 0; j < vSegs; j++) {
-            const a = i * (vSegs + 1) + j;
-            const b = a + 1;
-            const c = (i + 1) * (vSegs + 1) + j;
-            const d = c + 1;
+            const a = i * (vSegs + 1) + j, b = a + 1;
+            const c = (i + 1) * (vSegs + 1) + j, d = c + 1;
             indices.push(a, b, d, a, d, c);
           }
         }
@@ -117,22 +149,112 @@ export function Surface3D({ surface, size = 320 }: Props) {
         mesh = new THREE.Group();
         (mesh as ThreeTypes.Group).add(new THREE.Mesh(geo, mat));
         (mesh as ThreeTypes.Group).add(new THREE.Mesh(geo, wireMat));
-        camera.position.set(0, 0, 4);
       }
 
       scene.add(mesh);
+      const cutLines: ThreeTypes.Line[] = [];
+
+      // Store handles for segs effect
+      handlesRef.current = { scene, camera, renderer, cutLines };
+
+      function drawCutLines() {
+        const h = handlesRef.current;
+        if (!h) return;
+        for (const line of h.cutLines) {
+          h.scene.remove(line);
+          line.geometry.dispose();
+          (line.material as ThreeTypes.Material).dispose();
+        }
+        h.cutLines.length = 0;
+
+        const currentSegs = segsRef.current;
+        for (let i = 0; i < currentSegs.length; i++) {
+          const seg = currentSegs[i];
+          const color = EDGE_COLORS_HEX[i % EDGE_COLORS_HEX.length];
+          const N = 80;
+          const points: ThreeTypes.Vector3[] = [];
+          for (let t = 0; t <= N; t++) {
+            const lerp = t / N;
+            const pt2d = {
+              x: seg.a.x + (seg.b.x - seg.a.x) * lerp,
+              y: seg.a.y + (seg.b.y - seg.a.y) * lerp,
+            };
+            const p3 = liftOff(mapTo3D(pt2d, surface), surface);
+            points.push(new THREE.Vector3(p3.x, p3.y, p3.z));
+          }
+          const geo = new THREE.BufferGeometry().setFromPoints(points);
+          const lineMat = new THREE.LineBasicMaterial({ color, depthTest: true, depthWrite: false });
+          const line = new THREE.Line(geo, lineMat);
+          line.renderOrder = 1;
+          h.scene.add(line);
+          h.cutLines.push(line);
+        }
+      }
+
+      drawLinesRef.current = drawCutLines;
+      drawCutLines(); // draw any segs that were set before init
+
+      // Orbit controls
+      const canvas = renderer.domElement;
+
+      function onMouseDown(e: MouseEvent) {
+        orbit.isDragging = true;
+        orbit.lastX = e.clientX;
+        orbit.lastY = e.clientY;
+        orbit.autoRotate = false;
+        if (orbit.resumeTimer) clearTimeout(orbit.resumeTimer);
+      }
+
+      function onMouseMove(e: MouseEvent) {
+        if (!orbit.isDragging) return;
+        const dx = e.clientX - orbit.lastX;
+        const dy = e.clientY - orbit.lastY;
+        orbit.theta -= dx * 0.012;
+        orbit.phi = Math.max(0.1, Math.min(Math.PI - 0.1, orbit.phi + dy * 0.012));
+        orbit.lastX = e.clientX;
+        orbit.lastY = e.clientY;
+        applyCamera();
+        renderer.render(scene, camera);
+      }
+
+      function onMouseUp() {
+        orbit.isDragging = false;
+        if (orbit.resumeTimer) clearTimeout(orbit.resumeTimer);
+        orbit.resumeTimer = setTimeout(() => { orbit.autoRotate = true; }, 2000);
+      }
+
+      function onWheel(e: WheelEvent) {
+        e.preventDefault();
+        orbit.radius = Math.max(1.5, Math.min(8, orbit.radius + e.deltaY * 0.006));
+        applyCamera();
+        renderer.render(scene, camera);
+      }
+
+      canvas.addEventListener("mousedown", onMouseDown);
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+      canvas.addEventListener("wheel", onWheel, { passive: false });
 
       function animate() {
         animId = requestAnimationFrame(animate);
-        mesh.rotation.y += 0.008;
-        mesh.rotation.x = Math.sin(Date.now() * 0.0004) * 0.3;
+        if (orbit.autoRotate && !orbit.isDragging) {
+          orbit.theta += 0.008;
+          applyCamera();
+        }
         renderer.render(scene, camera);
       }
       animate();
 
-      cleanup = () => {
+      cleanupFn = () => {
         cancelAnimationFrame(animId);
+        if (orbit.resumeTimer) clearTimeout(orbit.resumeTimer);
+        canvas.removeEventListener("mousedown", onMouseDown);
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+        canvas.removeEventListener("wheel", onWheel);
         renderer.dispose();
+        handlesRef.current = null;
+        drawLinesRef.current = null;
         if (mountRef.current && renderer.domElement.parentNode === mountRef.current) {
           mountRef.current.removeChild(renderer.domElement);
         }
@@ -140,14 +262,15 @@ export function Surface3D({ surface, size = 320 }: Props) {
     }
 
     init();
-    return () => cleanup?.();
+    return () => cleanupFn?.();
   }, [surface, size]);
 
   return (
     <div
       ref={mountRef}
       style={{ width: size, height: size }}
-      className="rounded-xl overflow-hidden"
+      className="rounded-xl overflow-hidden cursor-grab active:cursor-grabbing select-none"
+      title="Перетаскивайте для вращения · колёсико для масштабирования"
     />
   );
 }
